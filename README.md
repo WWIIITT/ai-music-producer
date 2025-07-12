@@ -9,6 +9,15 @@ uvicorn app:app --reload --port 8000
 // Deactivate virtual environment
 deactivate
 ```
+
+# VS Code 設定
+選擇正確的 Python 解釋器：
+```
+按 Ctrl + Shift + P
+輸入 "Python: Select Interpreter"
+選擇虛擬環境的解釋器：
+.\venv\Scripts\python.exe
+```
 # Start Frontend:
 ```
 cd client
@@ -45,9 +54,25 @@ cd server
 python -m venv venv
 ```
 
-# 使用 Here-String to create a requirements.txt file
+# Frontend Dependencies
+```
+cd client
+npm install react react-dom
+npm install @vitejs/plugin-react vite
+npm install tone wavesurfer.js midi-parser-js
+npm install axios react-query --force
+npm install @mui/material @emotion/react @emotion/styled --force
+npm install react-dropzone react-hot-toast --force
+```
+# Activate virtual env
+```
+cd server
+venv\Scripts\activate
 ```
 
+
+# 使用 Here-String to create a requirements.txt file
+```
 @"
 fastapi==0.104.1
 uvicorn==0.24.0
@@ -55,7 +80,7 @@ python-multipart==0.0.6
 numpy==1.24.3
 librosa==0.10.1
 soundfile==0.12.1
-tensorflow==2.13.0
+tensorflow==2.15.0
 torch==2.1.0
 torchaudio==2.1.0
 mido==1.3.0
@@ -67,9 +92,8 @@ pandas==2.1.3
 scikit-learn==1.3.2
 motor==3.3.2
 python-dotenv==1.0.0
-corsheaders==0.0.0
 pydub==0.25.1
-"@ | Out-File -FilePath "requirements.txt" -Encoding utf8
+"@ | Out-File -FilePath "requirements.txt" -Encoding utf8 -Force
 
 pip install -r requirements.txt
 ```
@@ -113,9 +137,29 @@ API_KEY=your_api_key_here
 "@ | Out-File -FilePath "server\.env" -Encoding utf8
 ```
 
-```
 # 創建 client/.env 文件
+```
+
 @"
 VITE_API_URL=http://localhost:8000
 "@ | Out-File -FilePath "client\.env" -Encoding utf8
+```
+
+# Initial Project Structure
+```
+ai-music-producer/
+├── client/                 # React frontend
+│   ├── src/
+│   │   ├── components/    # UI components
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── utils/         # Helper functions
+│   │   └── App.js
+│   └── public/
+├── server/                 # Python backend
+│   ├── api/               # API endpoints
+│   ├── models/            # AI models
+│   ├── audio/             # Audio processing
+│   └── app.py
+├── data/                   # Sample audio files & datasets
+└── docker-compose.yml      # Container orchestration
 ```
