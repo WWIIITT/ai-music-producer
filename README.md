@@ -9,6 +9,15 @@ uvicorn app:app --reload --port 8000
 // Deactivate virtual environment
 deactivate
 ```
+
+# VS Code 設定
+選擇正確的 Python 解釋器：
+```
+按 Ctrl + Shift + P
+輸入 "Python: Select Interpreter"
+選擇虛擬環境的解釋器：
+.\venv\Scripts\python.exe
+```
 # Start Frontend:
 ```
 cd client
