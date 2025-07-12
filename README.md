@@ -45,6 +45,23 @@ cd server
 python -m venv venv
 ```
 
+# Frontend Dependencies
+```
+cd client
+npm install react react-dom
+npm install @vitejs/plugin-react vite
+npm install tone wavesurfer.js midi-parser-js
+npm install axios react-query --force
+npm install @mui/material @emotion/react @emotion/styled --force
+npm install react-dropzone react-hot-toast --force
+```
+# Activate virtual env
+```
+cd server
+venv\Scripts\activate
+```
+
+
 # 使用 Here-String to create a requirements.txt file
 ```
 
@@ -119,4 +136,23 @@ API_KEY=your_api_key_here
 @"
 VITE_API_URL=http://localhost:8000
 "@ | Out-File -FilePath "client\.env" -Encoding utf8
+```
+
+# Initial Project Structure
+```
+ai-music-producer/
+├── client/                 # React frontend
+│   ├── src/
+│   │   ├── components/    # UI components
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── utils/         # Helper functions
+│   │   └── App.js
+│   └── public/
+├── server/                 # Python backend
+│   ├── api/               # API endpoints
+│   ├── models/            # AI models
+│   ├── audio/             # Audio processing
+│   └── app.py
+├── data/                   # Sample audio files & datasets
+└── docker-compose.yml      # Container orchestration
 ```
