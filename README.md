@@ -64,7 +64,6 @@ venv\Scripts\activate
 
 # 使用 Here-String to create a requirements.txt file
 ```
-
 @"
 fastapi==0.104.1
 uvicorn==0.24.0
@@ -72,7 +71,7 @@ python-multipart==0.0.6
 numpy==1.24.3
 librosa==0.10.1
 soundfile==0.12.1
-tensorflow==2.13.0
+tensorflow==2.15.0
 torch==2.1.0
 torchaudio==2.1.0
 mido==1.3.0
@@ -84,9 +83,8 @@ pandas==2.1.3
 scikit-learn==1.3.2
 motor==3.3.2
 python-dotenv==1.0.0
-corsheaders==0.0.0
 pydub==0.25.1
-"@ | Out-File -FilePath "requirements.txt" -Encoding utf8
+"@ | Out-File -FilePath "requirements.txt" -Encoding utf8 -Force
 
 pip install -r requirements.txt
 ```
