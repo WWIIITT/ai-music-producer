@@ -1,5 +1,5 @@
 # ai-music-producer
-# Quick Start Commands
+
 # Start Backend:
 ```
 cd server
