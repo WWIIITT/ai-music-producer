@@ -10,7 +10,7 @@ uvicorn app:app --reload --port 8000
 deactivate
 ```
 
-# VS Code 設定
+# VS Code Setting
 選擇正確的 Python 解釋器：
 ```
 按 Ctrl + Shift + P
@@ -71,7 +71,7 @@ venv\Scripts\activate
 ```
 
 
-# 使用 Here-String to create a requirements.txt file
+# Use Here-String to create a requirements.txt file
 ```
 @"
 fastapi==0.104.1
