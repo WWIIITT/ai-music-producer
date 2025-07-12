@@ -1,12 +1,13 @@
 # server/api/database.py
-import motor.motor_asyncio
 import os
-from typing import Optional
+from typing import Optional, Any
+import motor.motor_asyncio
 
-client: Optional[motor.motor_asyncio.AsyncIOMotorClient] = None
-database = None
+# Use Any type to avoid Pylance issues
+client: Optional[Any] = None
+database: Optional[Any] = None
 
-async def get_database():
+async def get_database() -> Any:
     """Get MongoDB database instance"""
     global client, database
     
@@ -24,9 +25,10 @@ async def get_database():
     
     return database
 
-async def close_database():
+async def close_database() -> None:
     """Close database connection"""
-    global client
+    global client, database
     if client:
         client.close()
         client = None
+        database = None
