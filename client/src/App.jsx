@@ -54,43 +54,81 @@ function App() {
     genre: 'hip-hop'
   });
   
-  const [audioContext, setAudioContext] = useState(null);
-  const [transport, setTransport] = useState(null);
+  const [audioInitialized, setAudioInitialized] = useState(false);
 
   useEffect(() => {
-    // Initialize Tone.js
+    // Initialize Tone.js audio
     const initAudio = async () => {
-      await Tone.start();
-      setAudioContext(Tone.context);
-      setTransport(Tone.Transport);
-      Tone.Transport.bpm.value = tempo;
+      try {
+        if (Tone.context.state !== 'running') {
+          await Tone.start();
+        }
+        Tone.Transport.bpm.value = tempo;
+        setAudioInitialized(true);
+        console.log('Audio initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize audio:', error);
+        toast.error('Failed to initialize audio. Click anywhere to enable audio.');
+      }
     };
     
-    initAudio();
+    // Add click listener to initialize audio on user interaction
+    const handleUserInteraction = async () => {
+      await initAudio();
+      document.removeEventListener('click', handleUserInteraction);
+    };
+    
+    document.addEventListener('click', handleUserInteraction);
     
     return () => {
+      document.removeEventListener('click', handleUserInteraction);
       Tone.Transport.stop();
       Tone.Transport.cancel();
     };
   }, []);
 
   useEffect(() => {
-    if (transport) {
+    if (audioInitialized) {
       Tone.Transport.bpm.value = tempo;
+      // Update current project tempo
+      setCurrentProject(prev => ({ ...prev, tempo }));
     }
-  }, [tempo, transport]);
+  }, [tempo, audioInitialized]);
+
+  useEffect(() => {
+    // Listen for transport state changes
+    const updatePlayState = () => {
+      setIsPlaying(Tone.Transport.state === 'started');
+    };
+
+    Tone.Transport.on('start', updatePlayState);
+    Tone.Transport.on('stop', updatePlayState);
+    
+    return () => {
+      Tone.Transport.off('start', updatePlayState);
+      Tone.Transport.off('stop', updatePlayState);
+    };
+  }, []);
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
   };
 
-  const handlePlayStop = () => {
-    if (isPlaying) {
-      Tone.Transport.stop();
-      setIsPlaying(false);
-    } else {
-      Tone.Transport.start();
-      setIsPlaying(true);
+  const handlePlayStop = async () => {
+    try {
+      if (!audioInitialized) {
+        await Tone.start();
+        setAudioInitialized(true);
+      }
+
+      if (isPlaying) {
+        Tone.Transport.stop();
+      } else {
+        Tone.Transport.start();
+      }
+    } catch (error) {
+      console.error('Error controlling playback:', error);
+      toast.error('Playback error. Try refreshing the page.');
     }
   };
 
@@ -107,19 +145,27 @@ function App() {
 
   const handleExport = async (format = 'wav') => {
     try {
-      toast.loading('Exporting project...');
-      // In a real implementation, this would combine all tracks
-      // and export to the specified format
+      const loadingToast = toast.loading('Exporting project...');
+      
       const response = await axios.post(`${API_URL}/api/export`, {
         project: currentProject,
         format: format
       });
       
+      toast.dismiss(loadingToast);
+      
       // Download the file
-      window.open(response.data.download_url, '_blank');
-      toast.success('Export completed!');
+      const downloadUrl = `${API_URL}${response.data.download_url}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = response.data.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`Export completed! ${response.data.files_exported} files exported.`);
     } catch (error) {
-      toast.error('Export failed');
+      toast.error('Export failed: ' + (error.response?.data?.detail || error.message));
       console.error(error);
     }
   };
@@ -149,7 +195,11 @@ function App() {
               sx={{ width: 100 }}
             />
             
-            <IconButton onClick={handlePlayStop} color="primary">
+            <IconButton 
+              onClick={handlePlayStop} 
+              color="primary"
+              disabled={!audioInitialized}
+            >
               {isPlaying ? <Stop /> : <PlayArrow />}
             </IconButton>
             
@@ -165,6 +215,7 @@ function App() {
               startIcon={<Download />}
               variant="contained"
               onClick={() => handleExport('wav')}
+              disabled={currentProject.beats.length === 0 && currentProject.melodies.length === 0 && currentProject.harmonies.length === 0}
             >
               Export
             </Button>
@@ -263,6 +314,14 @@ function App() {
                 <Chip label={`${currentProject.melodies.length} Melodies`} sx={{ m: 0.5 }} />
                 <Chip label={`${currentProject.harmonies.length} Harmonies`} sx={{ m: 0.5 }} />
               </Box>
+              
+              {!audioInitialized && (
+                <Box sx={{ mt: 2, p: 1, bgcolor: '#333', borderRadius: 1 }}>
+                  <Typography variant="caption" color="warning.main">
+                    Click anywhere to enable audio
+                  </Typography>
+                </Box>
+              )}
             </Paper>
             
             <Paper sx={{ p: 2, bgcolor: '#1e1e1e' }}>

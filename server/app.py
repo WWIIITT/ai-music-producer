@@ -8,6 +8,8 @@ import numpy as np
 from pydantic import BaseModel
 import asyncio
 from datetime import datetime
+import zipfile
+import tempfile
 
 # Import our AI modules
 from models.beat_generator import BeatGenerator
@@ -52,6 +54,10 @@ class HarmonyRequest(BaseModel):
     genre: str = "pop"
     mood: str = "happy"
     bars: int = 4
+
+class ExportRequest(BaseModel):
+    project: dict
+    format: str = "wav"
 
 class AudioAnalysisResponse(BaseModel):
     tempo: float
@@ -218,6 +224,105 @@ async def style_transfer(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/export")
+async def export_project(request: ExportRequest):
+    """Export project to audio/MIDI files"""
+    try:
+        project = request.project
+        export_format = request.format
+        
+        # Create temporary directory for export files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_files = []
+            
+            # Export beats
+            if project.get("beats"):
+                for i, beat in enumerate(project["beats"]):
+                    if "pattern" in beat:
+                        pattern = np.array(beat["pattern"])
+                        audio_path = audio_proc.pattern_to_audio(
+                            pattern,
+                            tempo=beat.get("tempo", 120),
+                            output_dir=temp_dir
+                        )
+                        # Rename with descriptive name
+                        beat_name = f"beat_{i+1}_{beat.get('genre', 'unknown')}.wav"
+                        beat_path = os.path.join(temp_dir, beat_name)
+                        os.rename(audio_path, beat_path)
+                        export_files.append(beat_path)
+            
+            # Export melodies
+            if project.get("melodies"):
+                for i, melody in enumerate(project["melodies"]):
+                    if "notes" in melody and "durations" in melody:
+                        # Export as MIDI
+                        midi_path = audio_proc.melody_to_midi(
+                            melody,
+                            tempo=melody.get("tempo", 120),
+                            output_dir=temp_dir
+                        )
+                        melody_name = f"melody_{i+1}_{melody.get('key', 'C')}_{melody.get('scale', 'major')}.mid"
+                        melody_midi_path = os.path.join(temp_dir, melody_name)
+                        os.rename(midi_path, melody_midi_path)
+                        export_files.append(melody_midi_path)
+                        
+                        # Also export as audio if requested
+                        if export_format in ["wav", "both"]:
+                            audio_path = audio_proc.midi_to_audio(melody_midi_path)
+                            audio_name = f"melody_{i+1}_{melody.get('key', 'C')}_{melody.get('scale', 'major')}.wav"
+                            melody_audio_path = os.path.join(temp_dir, audio_name)
+                            os.rename(audio_path, melody_audio_path)
+                            export_files.append(melody_audio_path)
+            
+            # Export harmonies
+            if project.get("harmonies"):
+                for i, harmony in enumerate(project["harmonies"]):
+                    if "progression" in harmony and "chords" in harmony["progression"]:
+                        chords = harmony["progression"]["chords"]
+                        audio_path = audio_proc.chords_to_audio(
+                            chords,
+                            tempo=120,
+                            output_dir=temp_dir
+                        )
+                        harmony_name = f"harmony_{i+1}_{len(chords)}chords.wav"
+                        harmony_path = os.path.join(temp_dir, harmony_name)
+                        os.rename(audio_path, harmony_path)
+                        export_files.append(harmony_path)
+            
+            if not export_files:
+                raise HTTPException(status_code=400, detail="No exportable content found in project")
+            
+            # Create ZIP file
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            project_name = project.get("name", "Untitled_Project").replace(" ", "_")
+            zip_filename = f"{project_name}_{timestamp}.zip"
+            zip_path = os.path.join("./temp", zip_filename)
+            
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in export_files:
+                    zipf.write(file_path, os.path.basename(file_path))
+        
+        return {
+            "download_url": f"/api/download/{zip_filename}",
+            "filename": zip_filename,
+            "files_exported": len(export_files)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/download/{filename}")
+async def download_export(filename: str):
+    """Download exported project files"""
+    file_path = f"./temp/{filename}"
+    if os.path.exists(file_path):
+        return FileResponse(
+            file_path, 
+            media_type="application/zip",
+            filename=filename
+        )
+    raise HTTPException(status_code=404, detail="Export file not found")
+
 @app.get("/api/audio/{filename}")
 async def get_audio(filename: str):
     """Serve audio files"""
@@ -248,6 +353,15 @@ async def save_project(project_data: dict):
     project_data["created_at"] = datetime.utcnow()
     result = await db.projects.insert_one(project_data)
     return {"id": str(result.inserted_id), "message": "Project saved"}
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str):
+    """Delete a project"""
+    db = await get_database()
+    result = await db.projects.delete_one({"_id": project_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {"message": "Project deleted"}
 
 # Create temp directory if it doesn't exist
 os.makedirs("./temp", exist_ok=True)

@@ -1,4 +1,4 @@
-// client/src/components/BeatGenerator.js
+// client/src/components/BeatGenerator.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
@@ -35,45 +35,107 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
   const [activeSteps, setActiveSteps] = useState([]);
   
   const sequencerRef = useRef(null);
-  const samplerRef = useRef(null);
+  const drumsRef = useRef({});
 
   const drumNames = ['Kick', 'Snare', 'Hi-Hat', 'Open Hat', 'Crash', 'Ride', 'Tom H', 'Tom M', 'Tom L'];
   const drumColors = ['#f44336', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#FFC107', '#795548', '#607D8B'];
 
   useEffect(() => {
-    // Initialize drum sampler
-    const sampler = new Tone.Sampler({
-      urls: {
-        C3: 'kick.wav',
-        D3: 'snare.wav',
-        E3: 'hihat_closed.wav',
-        F3: 'hihat_open.wav',
-        G3: 'crash.wav',
-        A3: 'ride.wav',
-        B3: 'tom_high.wav',
-        C4: 'tom_mid.wav',
-        D4: 'tom_low.wav'
-      },
-      baseUrl: '/samples/',
-      onload: () => {
-        console.log('Drums loaded');
-      }
-    }).toDestination();
+    // Initialize synthetic drums using Tone.js built-in capabilities
+    const initDrums = async () => {
+      // Wait for audio context
+      await Tone.start();
+      
+      // Create synthetic drum sounds
+      drumsRef.current = {
+        kick: new Tone.MembraneSynth({
+          pitchDecay: 0.05,
+          octaves: 10,
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 }
+        }).toDestination(),
+        
+        snare: new Tone.NoiseSynth({
+          noise: { type: 'white' },
+          envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
+        }).toDestination(),
+        
+        hihat: new Tone.MetalSynth({
+          frequency: 200,
+          envelope: { attack: 0.001, decay: 0.1, release: 0.01 },
+          harmonicity: 5.1,
+          modulationIndex: 32,
+          resonance: 4000,
+          octaves: 1.5
+        }).toDestination(),
+        
+        openhat: new Tone.MetalSynth({
+          frequency: 200,
+          envelope: { attack: 0.001, decay: 0.3, release: 0.1 },
+          harmonicity: 5.1,
+          modulationIndex: 32,
+          resonance: 4000,
+          octaves: 1.5
+        }).toDestination(),
+        
+        crash: new Tone.MetalSynth({
+          frequency: 300,
+          envelope: { attack: 0.001, decay: 1, release: 2 },
+          harmonicity: 5.1,
+          modulationIndex: 64,
+          resonance: 4000,
+          octaves: 1.5
+        }).toDestination(),
+        
+        ride: new Tone.MetalSynth({
+          frequency: 800,
+          envelope: { attack: 0.001, decay: 0.5, release: 0.1 },
+          harmonicity: 5.1,
+          modulationIndex: 16,
+          resonance: 4000,
+          octaves: 1
+        }).toDestination(),
+        
+        tomH: new Tone.MembraneSynth({
+          pitchDecay: 0.008,
+          octaves: 2,
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
+        }).toDestination(),
+        
+        tomM: new Tone.MembraneSynth({
+          pitchDecay: 0.008,
+          octaves: 2,
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
+        }).toDestination(),
+        
+        tomL: new Tone.MembraneSynth({
+          pitchDecay: 0.008,
+          octaves: 2,
+          oscillator: { type: 'sine' },
+          envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
+        }).toDestination()
+      };
+    };
 
-    samplerRef.current = sampler;
+    initDrums();
 
     return () => {
       if (sequencerRef.current) {
         sequencerRef.current.dispose();
       }
-      sampler.dispose();
+      // Dispose drums
+      Object.values(drumsRef.current).forEach(drum => {
+        if (drum && drum.dispose) drum.dispose();
+      });
     };
   }, []);
 
   const generateBeat = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/generate/beat`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/generate/beat`, {
         genre,
         tempo,
         bars,
@@ -121,9 +183,37 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
       // Play sounds for this step
       beatPattern.forEach((drumTrack, drumIndex) => {
         if (drumTrack[step] > 0) {
-          const note = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4', 'D4'][drumIndex];
-          if (samplerRef.current && note) {
-            samplerRef.current.triggerAttackRelease(note, '16n', time, drumTrack[step]);
+          const velocity = drumTrack[step];
+          
+          // Trigger the appropriate drum sound
+          switch(drumIndex) {
+            case 0: // Kick
+              drumsRef.current.kick?.triggerAttackRelease('C2', '8n', time, velocity);
+              break;
+            case 1: // Snare
+              drumsRef.current.snare?.triggerAttackRelease('8n', time, velocity);
+              break;
+            case 2: // Hi-Hat
+              drumsRef.current.hihat?.triggerAttackRelease('16n', time, velocity * 0.5);
+              break;
+            case 3: // Open Hat
+              drumsRef.current.openhat?.triggerAttackRelease('8n', time, velocity * 0.7);
+              break;
+            case 4: // Crash
+              drumsRef.current.crash?.triggerAttackRelease('2n', time, velocity * 0.8);
+              break;
+            case 5: // Ride
+              drumsRef.current.ride?.triggerAttackRelease('4n', time, velocity * 0.6);
+              break;
+            case 6: // Tom High
+              drumsRef.current.tomH?.triggerAttackRelease('G3', '8n', time, velocity);
+              break;
+            case 7: // Tom Mid
+              drumsRef.current.tomM?.triggerAttackRelease('D3', '8n', time, velocity);
+              break;
+            case 8: // Tom Low
+              drumsRef.current.tomL?.triggerAttackRelease('A2', '8n', time, velocity);
+              break;
           }
         }
       });
@@ -135,11 +225,15 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
     sequencerRef.current = sequence;
   };
 
-  const handlePlayStop = () => {
+  const handlePlayStop = async () => {
     if (isPlaying) {
       Tone.Transport.stop();
       setActiveSteps([]);
     } else {
+      // Ensure audio context is started
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+      }
       Tone.Transport.start();
     }
     setIsPlaying(!isPlaying);
