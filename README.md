@@ -155,7 +155,6 @@ VITE_API_URL=http://localhost:8000
 ├── 📄 docker-compose.yml              # Docker compose configuration
 ├── 📄 README.md                       # Project documentation
 ├── 📁 data/                           # Data directory
-├── 📁 node_modules/                   # Node.js dependencies (root)
 │
 ├── 📁 client/                         # Frontend React Application
 │   ├── 📁 node_modules/               # Frontend dependencies
