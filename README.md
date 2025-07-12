@@ -113,8 +113,9 @@ API_KEY=your_api_key_here
 "@ | Out-File -FilePath "server\.env" -Encoding utf8
 ```
 
-```
 # 創建 client/.env 文件
+```
+
 @"
 VITE_API_URL=http://localhost:8000
 "@ | Out-File -FilePath "client\.env" -Encoding utf8
