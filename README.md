@@ -3,7 +3,7 @@
 # Start Backend:
 ```
 cd server
-source venv/bin/activate
+venv\Scripts\activate
 uvicorn app:app --reload --port 8000
 
 // Deactivate virtual environment
