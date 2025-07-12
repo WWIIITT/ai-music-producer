@@ -148,18 +148,49 @@ VITE_API_URL=http://localhost:8000
 # Initial Project Structure
 ```
 ai-music-producer/
-├── client/                 # React frontend
-│   ├── src/
-│   │   ├── components/    # UI components
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── utils/         # Helper functions
-│   │   └── App.js
-│   └── public/
-├── server/                 # Python backend
-│   ├── api/               # API endpoints
-│   ├── models/            # AI models
-│   ├── audio/             # Audio processing
-│   └── app.py
-├── data/                   # Sample audio files & datasets
-└── docker-compose.yml      # Container orchestration
+├── 📁 .git/                           # Git 版本控制
+├── 📁 client/                         # 前端 React 應用
+│   ├── 📁 public/
+│   │   ├── 📄 index.html             # 主要 HTML 模板
+│   │   └── 📄 test.html              # 測試頁面
+│   ├── 📁 src/
+│   │   ├── 📁 components/            # React 組件
+│   │   ├── 📁 hooks/                 # 自定義 React Hooks
+│   │   ├── 📁 utils/                 # 工具函數
+│   │   ├── 📄 App.jsx               # 主要 App 組件
+│   │   ├── 📄 index.css             # 全局樣式
+│   │   └── 📄 main.jsx              # React 應用入口點
+│   ├── 📄 .gitignore
+│   ├── 📄 package.json              # 前端依賴管理
+│   └── 📄 package.json.backup       # 備份文件
+├── 📁 data/                          # 數據目錄
+├── 📁 node_modules/                  # 根目錄 Node.js 依賴
+├── 📁 server/                        # 後端 FastAPI 應用
+│   ├── 📁 api/                      # API 相關模組
+│   │   ├── 📁 __pycache__/
+│   │   ├── 📄 .gitignore
+│   │   └── 📄 database.py           # 數據庫連接
+│   ├── 📁 audio/                    # 音頻處理模組
+│   │   ├── 📁 __pycache__/
+│   │   ├── 📄 .gitignore
+│   │   └── 📄 processor.py          # 音頻處理器
+│   ├── 📁 models/                   # AI 模型
+│   │   ├── 📁 __pycache__/
+│   │   ├── 📄 .gitignore
+│   │   ├── 📄 beat_generator.py     # 節拍生成器
+│   │   ├── 📄 harmony_suggester.py # 和聲建議器
+│   │   └── 📄 melody_generator.py   # 旋律生成器
+│   ├── 📁 temp/                     # 臨時文件存儲
+│   ├── 📁 venv/                     # Python 虛擬環境
+│   ├── 📄 .env                      # 環境變數
+│   ├── 📄 .gitignore
+│   ├── 📄 app.py                    # FastAPI 主應用
+│   └── 📄 requirements.txt          # Python 依賴管理
+├── 📄 .env                          # 根目錄環境變數
+├── 📄 .gitignore                    # Git 忽略文件
+├── 📄 docker-compose.yml           # Docker 服務配置
+├── 📄 package.json                 # 根目錄 Node.js 配置
+├── 📄 package-lock.json            # 依賴鎖定文件
+├── 📄 README.md                    # 項目說明文檔
+└── 📄 vite.config.js              # Vite 配置文件
 ```
