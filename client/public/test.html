@@ -1,0 +1,23 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+</head>
+<body>
+    <h1>Test Page</h1>
+    <p>If you can see this, the server is working.</p>
+    <script>
+        console.log('Test page loaded');
+        fetch('http://localhost:8000')
+            .then(response => response.json())
+            .then(data => {
+                console.log('API Response:', data);
+                document.body.innerHTML += '<p>API is working: ' + data.message + '</p>';
+            })
+            .catch(error => {
+                console.error('API Error:', error);
+                document.body.innerHTML += '<p style="color: red;">API Error: ' + error + '</p>';
+            });
+    </script>
+</body>
+</html>
