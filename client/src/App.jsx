@@ -19,6 +19,7 @@ import {
   Tabs,
   Tab,
   Chip,
+  Alert
 } from '@mui/material';
 import {
   PlayArrow,
@@ -27,7 +28,10 @@ import {
   MusicNote,
   Piano,
   GraphicEq,
-  Save
+  Save,
+  VolumeUp,
+  VolumeDown,
+  VolumeMute
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -44,6 +48,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [tempo, setTempo] = useState(120);
+  const [masterVolume, setMasterVolume] = useState(80);
   const [currentProject, setCurrentProject] = useState({
     name: 'Untitled Project',
     beats: [],
@@ -55,60 +60,119 @@ function App() {
   });
   
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [audioContextState, setAudioContextState] = useState('suspended');
+  const [masterGain, setMasterGain] = useState(null);
+
+  // Force audio initialization on first user interaction
+  const initializeAudio = async () => {
+    try {
+      console.log('Initializing audio context...');
+      
+      // Ensure Tone.js context is started
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+        console.log('Tone.js context started successfully');
+      }
+      
+      // Create master gain node
+      const gain = new Tone.Gain(masterVolume / 100).toDestination();
+      setMasterGain(gain);
+      
+      // Set transport BPM
+      Tone.Transport.bpm.value = tempo;
+      
+      // Update states
+      setAudioInitialized(true);
+      setAudioContextState(Tone.context.state);
+      
+      // Test audio with a quick beep
+      const testOscillator = new Tone.Oscillator(440, 'sine').connect(gain);
+      testOscillator.start();
+      testOscillator.stop('+0.1');
+      testOscillator.dispose();
+      
+      toast.success('Audio initialized successfully!');
+      console.log('Audio initialization complete');
+      
+    } catch (error) {
+      console.error('Failed to initialize audio:', error);
+      toast.error(`Audio initialization failed: ${error.message}`);
+    }
+  };
 
   useEffect(() => {
-    // Initialize Tone.js audio
-    const initAudio = async () => {
-      try {
-        if (Tone.context.state !== 'running') {
-          await Tone.start();
-        }
-        Tone.Transport.bpm.value = tempo;
-        setAudioInitialized(true);
-        console.log('Audio initialized successfully');
-      } catch (error) {
-        console.error('Failed to initialize audio:', error);
-        toast.error('Failed to initialize audio. Click anywhere to enable audio.');
+    // Add multiple event listeners for user interaction
+    const events = ['click', 'touchstart', 'keydown'];
+    
+    const handleUserInteraction = async (event) => {
+      console.log('User interaction detected:', event.type);
+      await initializeAudio();
+      
+      // Remove all event listeners after successful initialization
+      events.forEach(eventName => {
+        document.removeEventListener(eventName, handleUserInteraction);
+      });
+    };
+    
+    // Add event listeners
+    events.forEach(eventName => {
+      document.addEventListener(eventName, handleUserInteraction, { once: true });
+    });
+    
+    // Monitor audio context state
+    const checkAudioState = () => {
+      if (Tone.context) {
+        setAudioContextState(Tone.context.state);
       }
     };
     
-    // Add click listener to initialize audio on user interaction
-    const handleUserInteraction = async () => {
-      await initAudio();
-      document.removeEventListener('click', handleUserInteraction);
-    };
-    
-    document.addEventListener('click', handleUserInteraction);
+    const intervalId = setInterval(checkAudioState, 1000);
     
     return () => {
-      document.removeEventListener('click', handleUserInteraction);
-      Tone.Transport.stop();
-      Tone.Transport.cancel();
+      // Cleanup
+      events.forEach(eventName => {
+        document.removeEventListener(eventName, handleUserInteraction);
+      });
+      clearInterval(intervalId);
+      
+      if (Tone.Transport) {
+        Tone.Transport.stop();
+        Tone.Transport.cancel();
+      }
+      if (masterGain) {
+        masterGain.dispose();
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (audioInitialized) {
+    if (audioInitialized && masterGain) {
       Tone.Transport.bpm.value = tempo;
-      // Update current project tempo
       setCurrentProject(prev => ({ ...prev, tempo }));
     }
   }, [tempo, audioInitialized]);
 
   useEffect(() => {
-    // Listen for transport state changes
+    if (masterGain) {
+      masterGain.gain.rampTo(masterVolume / 100, 0.1);
+    }
+  }, [masterVolume, masterGain]);
+
+  useEffect(() => {
     const updatePlayState = () => {
       setIsPlaying(Tone.Transport.state === 'started');
     };
 
-    Tone.Transport.on('start', updatePlayState);
-    Tone.Transport.on('stop', updatePlayState);
-    
-    return () => {
-      Tone.Transport.off('start', updatePlayState);
-      Tone.Transport.off('stop', updatePlayState);
-    };
-  }, []);
+    if (Tone.Transport) {
+      Tone.Transport.on('start', updatePlayState);
+      Tone.Transport.on('stop', updatePlayState);
+      
+      return () => {
+        Tone.Transport.off('start', updatePlayState);
+        Tone.Transport.off('stop', updatePlayState);
+      };
+    }
+  }, [audioInitialized]);
 
   const handleTabChange = (event, newValue) => {
     setCurrentTab(newValue);
@@ -117,8 +181,7 @@ function App() {
   const handlePlayStop = async () => {
     try {
       if (!audioInitialized) {
-        await Tone.start();
-        setAudioInitialized(true);
+        await initializeAudio();
       }
 
       if (isPlaying) {
@@ -128,8 +191,26 @@ function App() {
       }
     } catch (error) {
       console.error('Error controlling playback:', error);
-      toast.error('Playback error. Try refreshing the page.');
+      toast.error('Playback error. Please try clicking to enable audio first.');
     }
+  };
+
+  const handleVolumeChange = (event, newValue) => {
+    setMasterVolume(newValue);
+  };
+
+  const handleMuteToggle = () => {
+    if (masterVolume > 0) {
+      setMasterVolume(0);
+    } else {
+      setMasterVolume(80);
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (masterVolume === 0) return <VolumeMute />;
+    if (masterVolume < 50) return <VolumeDown />;
+    return <VolumeUp />;
   };
 
   const handleSaveProject = async () => {
@@ -154,7 +235,6 @@ function App() {
       
       toast.dismiss(loadingToast);
       
-      // Download the file
       const downloadUrl = `${API_URL}${response.data.download_url}`;
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -174,9 +254,38 @@ function App() {
     setCurrentProject(prev => ({ ...prev, ...updates }));
   };
 
+  const handleForceAudioInit = async () => {
+    await initializeAudio();
+  };
+
   return (
     <Box sx={{ flexGrow: 1, bgcolor: '#121212', minHeight: '100vh', color: 'white' }}>
       <Toaster position="top-right" />
+      
+      {/* Audio Status Alert */}
+      {!audioInitialized && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 2, 
+            bgcolor: '#333', 
+            color: 'orange',
+            '& .MuiAlert-icon': { color: 'orange' }
+          }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={handleForceAudioInit}
+              sx={{ color: 'orange' }}
+            >
+              ENABLE AUDIO
+            </Button>
+          }
+        >
+          Audio Context: {audioContextState} - Click "ENABLE AUDIO" or anywhere on the page to activate sound
+        </Alert>
+      )}
       
       <AppBar position="static" sx={{ bgcolor: '#1e1e1e' }}>
         <Toolbar>
@@ -186,6 +295,42 @@ function App() {
           </Typography>
           
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Audio Status Indicator */}
+            <Chip 
+              label={`Audio: ${audioContextState}`}
+              color={audioInitialized ? 'success' : 'warning'}
+              size="small"
+            />
+            
+            {/* Master Volume Control */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mr: 2 }}>
+              <IconButton 
+                onClick={handleMuteToggle}
+                color="primary"
+                size="small"
+              >
+                {getVolumeIcon()}
+              </IconButton>
+              <Typography variant="caption" sx={{ minWidth: 40 }}>
+                Vol: {masterVolume}
+              </Typography>
+              <Slider
+                value={masterVolume}
+                onChange={handleVolumeChange}
+                min={0}
+                max={100}
+                sx={{ 
+                  width: 80,
+                  '& .MuiSlider-thumb': {
+                    color: '#90caf9'
+                  },
+                  '& .MuiSlider-track': {
+                    color: '#90caf9'
+                  }
+                }}
+              />
+            </Box>
+            
             <Typography>BPM: {tempo}</Typography>
             <Slider
               value={tempo}
@@ -239,6 +384,8 @@ function App() {
                 {currentTab === 0 && (
                   <BeatGenerator
                     tempo={tempo}
+                    masterGain={masterGain}
+                    audioInitialized={audioInitialized}
                     onBeatGenerated={(beat) => updateProject({ 
                       beats: [...currentProject.beats, beat] 
                     })}
@@ -249,6 +396,8 @@ function App() {
                   <MelodyGenerator
                     tempo={tempo}
                     currentKey={currentProject.key}
+                    masterGain={masterGain}
+                    audioInitialized={audioInitialized}
                     onMelodyGenerated={(melody) => updateProject({ 
                       melodies: [...currentProject.melodies, melody] 
                     })}
@@ -259,6 +408,8 @@ function App() {
                   <HarmonyPanel
                     currentKey={currentProject.key}
                     genre={currentProject.genre}
+                    masterGain={masterGain}
+                    audioInitialized={audioInitialized}
                     onHarmonySelected={(harmony) => updateProject({ 
                       harmonies: [...currentProject.harmonies, harmony] 
                     })}
@@ -318,7 +469,7 @@ function App() {
               {!audioInitialized && (
                 <Box sx={{ mt: 2, p: 1, bgcolor: '#333', borderRadius: 1 }}>
                   <Typography variant="caption" color="warning.main">
-                    Click anywhere to enable audio
+                    🔊 Audio disabled - Click "ENABLE AUDIO" to hear sounds
                   </Typography>
                 </Box>
               )}

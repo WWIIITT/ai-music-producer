@@ -19,13 +19,14 @@ import {
   Stop,
   Refresh,
   VolumeUp,
-  VolumeOff
+  VolumeDown,
+  VolumeMute
 } from '@mui/icons-material';
 import * as Tone from 'tone';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const BeatGenerator = ({ tempo, onBeatGenerated }) => {
+const BeatGenerator = ({ tempo, masterGain, onBeatGenerated }) => {
   const [pattern, setPattern] = useState(null);
   const [genre, setGenre] = useState('hip-hop');
   const [complexity, setComplexity] = useState(0.7);
@@ -33,9 +34,11 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeSteps, setActiveSteps] = useState([]);
+  const [beatVolume, setBeatVolume] = useState(75); // Individual volume for beats (0-100)
   
   const sequencerRef = useRef(null);
   const drumsRef = useRef({});
+  const beatGainRef = useRef(null);
 
   const drumNames = ['Kick', 'Snare', 'Hi-Hat', 'Open Hat', 'Crash', 'Ride', 'Tom H', 'Tom M', 'Tom L'];
   const drumColors = ['#f44336', '#2196F3', '#4CAF50', '#FF9800', '#9C27B0', '#00BCD4', '#FFC107', '#795548', '#607D8B'];
@@ -46,6 +49,17 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
       // Wait for audio context
       await Tone.start();
       
+      // Create beat-specific gain node
+      const beatGain = new Tone.Gain(beatVolume / 100);
+      beatGainRef.current = beatGain;
+      
+      // Connect to master gain if available, otherwise to destination
+      if (masterGain) {
+        beatGain.connect(masterGain);
+      } else {
+        beatGain.toDestination();
+      }
+      
       // Create synthetic drum sounds
       drumsRef.current = {
         kick: new Tone.MembraneSynth({
@@ -53,12 +67,12 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           octaves: 10,
           oscillator: { type: 'sine' },
           envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 }
-        }).toDestination(),
+        }).connect(beatGain),
         
         snare: new Tone.NoiseSynth({
           noise: { type: 'white' },
           envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
-        }).toDestination(),
+        }).connect(beatGain),
         
         hihat: new Tone.MetalSynth({
           frequency: 200,
@@ -67,7 +81,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           modulationIndex: 32,
           resonance: 4000,
           octaves: 1.5
-        }).toDestination(),
+        }).connect(beatGain),
         
         openhat: new Tone.MetalSynth({
           frequency: 200,
@@ -76,7 +90,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           modulationIndex: 32,
           resonance: 4000,
           octaves: 1.5
-        }).toDestination(),
+        }).connect(beatGain),
         
         crash: new Tone.MetalSynth({
           frequency: 300,
@@ -85,7 +99,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           modulationIndex: 64,
           resonance: 4000,
           octaves: 1.5
-        }).toDestination(),
+        }).connect(beatGain),
         
         ride: new Tone.MetalSynth({
           frequency: 800,
@@ -94,28 +108,28 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           modulationIndex: 16,
           resonance: 4000,
           octaves: 1
-        }).toDestination(),
+        }).connect(beatGain),
         
         tomH: new Tone.MembraneSynth({
           pitchDecay: 0.008,
           octaves: 2,
           oscillator: { type: 'sine' },
           envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
-        }).toDestination(),
+        }).connect(beatGain),
         
         tomM: new Tone.MembraneSynth({
           pitchDecay: 0.008,
           octaves: 2,
           oscillator: { type: 'sine' },
           envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
-        }).toDestination(),
+        }).connect(beatGain),
         
         tomL: new Tone.MembraneSynth({
           pitchDecay: 0.008,
           octaves: 2,
           oscillator: { type: 'sine' },
           envelope: { attack: 0.006, decay: 0.5, sustain: 0 }
-        }).toDestination()
+        }).connect(beatGain)
       };
     };
 
@@ -129,8 +143,18 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
       Object.values(drumsRef.current).forEach(drum => {
         if (drum && drum.dispose) drum.dispose();
       });
+      if (beatGainRef.current) {
+        beatGainRef.current.dispose();
+      }
     };
-  }, []);
+  }, [masterGain]);
+
+  useEffect(() => {
+    // Update beat volume
+    if (beatGainRef.current) {
+      beatGainRef.current.gain.rampTo(beatVolume / 100, 0.1);
+    }
+  }, [beatVolume]);
 
   const generateBeat = async () => {
     setIsLoading(true);
@@ -239,6 +263,24 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
     setIsPlaying(!isPlaying);
   };
 
+  const handleVolumeChange = (event, newValue) => {
+    setBeatVolume(newValue);
+  };
+
+  const handleMuteToggle = () => {
+    if (beatVolume > 0) {
+      setBeatVolume(0);
+    } else {
+      setBeatVolume(75);
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (beatVolume === 0) return <VolumeMute />;
+    if (beatVolume < 50) return <VolumeDown />;
+    return <VolumeUp />;
+  };
+
   const toggleStep = (drumIndex, stepIndex) => {
     if (!pattern) return;
     
@@ -259,7 +301,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
   return (
     <Box>
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2}>
           <FormControl fullWidth>
             <InputLabel>Genre</InputLabel>
             <Select value={genre} onChange={(e) => setGenre(e.target.value)}>
@@ -271,7 +313,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2}>
           <FormControl fullWidth>
             <InputLabel>Bars</InputLabel>
             <Select value={bars} onChange={(e) => setBars(e.target.value)}>
@@ -283,7 +325,7 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2}>
           <Typography gutterBottom>Complexity</Typography>
           <Slider
             value={complexity}
@@ -294,6 +336,37 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
             marks
             valueLabelDisplay="auto"
           />
+        </Grid>
+
+        {/* Beat Volume Control */}
+        <Grid item xs={12} md={3}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <IconButton 
+              onClick={handleMuteToggle}
+              color="primary"
+              size="small"
+            >
+              {getVolumeIcon()}
+            </IconButton>
+            <Typography variant="caption" sx={{ minWidth: 60 }}>
+              Beats: {beatVolume}
+            </Typography>
+            <Slider
+              value={beatVolume}
+              onChange={handleVolumeChange}
+              min={0}
+              max={100}
+              sx={{ 
+                width: 80,
+                '& .MuiSlider-thumb': {
+                  color: '#f44336'
+                },
+                '& .MuiSlider-track': {
+                  color: '#f44336'
+                }
+              }}
+            />
+          </Box>
         </Grid>
         
         <Grid item xs={12} md={3}>
@@ -322,7 +395,14 @@ const BeatGenerator = ({ tempo, onBeatGenerated }) => {
         <Paper sx={{ p: 2, bgcolor: '#2a2a2a' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
             <Typography variant="h6">Beat Pattern</Typography>
-            <Button size="small" onClick={clearPattern}>Clear</Button>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Chip 
+                label={`Volume: ${beatVolume}%`} 
+                size="small" 
+                sx={{ bgcolor: '#f44336', color: 'white' }}
+              />
+              <Button size="small" onClick={clearPattern}>Clear</Button>
+            </Box>
           </Box>
           
           <Box sx={{ overflowX: 'auto' }}>

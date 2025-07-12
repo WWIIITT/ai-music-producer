@@ -12,56 +12,89 @@ import {
   InputLabel,
   TextField,
   Chip,
-  IconButton
+  IconButton,
+  Slider
 } from '@mui/material';
 import {
   PlayArrow,
   Stop,
   Piano,
   MusicNote,
-  Download
+  Download,
+  VolumeUp,
+  VolumeDown,
+  VolumeMute
 } from '@mui/icons-material';
 import * as Tone from 'tone';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
+const MelodyGenerator = ({ tempo, currentKey, masterGain, onMelodyGenerated }) => {
   const [scale, setScale] = useState('major');
   const [melodyBars, setMelodyBars] = useState(4);
   const [chordProgression, setChordProgression] = useState('');
   const [generatedMelody, setGeneratedMelody] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [melodyVolume, setMelodyVolume] = useState(70); // Individual volume for melodies (0-100)
   
   const synthRef = useRef(null);
   const partRef = useRef(null);
   const canvasRef = useRef(null);
+  const melodyGainRef = useRef(null);
 
   const scales = ['major', 'minor', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian'];
   
   useEffect(() => {
-    // Initialize synth
-    const synth = new Tone.PolySynth(Tone.Synth, {
-      oscillator: {
-        type: 'triangle'
-      },
-      envelope: {
-        attack: 0.005,
-        decay: 0.1,
-        sustain: 0.3,
-        release: 0.5
+    // Initialize synth with melody-specific gain
+    const initSynth = async () => {
+      // Create melody-specific gain node
+      const melodyGain = new Tone.Gain(melodyVolume / 100);
+      melodyGainRef.current = melodyGain;
+      
+      // Connect to master gain if available, otherwise to destination
+      if (masterGain) {
+        melodyGain.connect(masterGain);
+      } else {
+        melodyGain.toDestination();
       }
-    }).toDestination();
-    
-    synthRef.current = synth;
+
+      const synth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: {
+          type: 'triangle'
+        },
+        envelope: {
+          attack: 0.005,
+          decay: 0.1,
+          sustain: 0.3,
+          release: 0.5
+        }
+      }).connect(melodyGain);
+      
+      synthRef.current = synth;
+    };
+
+    initSynth();
 
     return () => {
       if (partRef.current) {
         partRef.current.dispose();
       }
-      synth.dispose();
+      if (synthRef.current) {
+        synthRef.current.dispose();
+      }
+      if (melodyGainRef.current) {
+        melodyGainRef.current.dispose();
+      }
     };
-  }, []);
+  }, [masterGain]);
+
+  useEffect(() => {
+    // Update melody volume
+    if (melodyGainRef.current) {
+      melodyGainRef.current.gain.rampTo(melodyVolume / 100, 0.1);
+    }
+  }, [melodyVolume]);
 
   const generateMelody = async () => {
     setIsLoading(true);
@@ -186,6 +219,24 @@ const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
     setIsPlaying(!isPlaying);
   };
 
+  const handleVolumeChange = (event, newValue) => {
+    setMelodyVolume(newValue);
+  };
+
+  const handleMuteToggle = () => {
+    if (melodyVolume > 0) {
+      setMelodyVolume(0);
+    } else {
+      setMelodyVolume(70);
+    }
+  };
+
+  const getVolumeIcon = () => {
+    if (melodyVolume === 0) return <VolumeMute />;
+    if (melodyVolume < 50) return <VolumeDown />;
+    return <VolumeUp />;
+  };
+
   const downloadMIDI = async () => {
     if (!generatedMelody || !generatedMelody.midi_url) return;
     
@@ -200,7 +251,7 @@ const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
   return (
     <Box>
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={2}>
           <FormControl fullWidth>
             <InputLabel>Scale</InputLabel>
             <Select value={scale} onChange={(e) => setScale(e.target.value)}>
@@ -225,7 +276,7 @@ const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
           </FormControl>
         </Grid>
         
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={3}>
           <TextField
             fullWidth
             label="Chord Progression (optional)"
@@ -235,8 +286,39 @@ const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
             helperText="Comma-separated chord symbols"
           />
         </Grid>
-        
+
+        {/* Melody Volume Control */}
         <Grid item xs={12} md={3}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <IconButton 
+              onClick={handleMuteToggle}
+              color="primary"
+              size="small"
+            >
+              {getVolumeIcon()}
+            </IconButton>
+            <Typography variant="caption" sx={{ minWidth: 70 }}>
+              Melody: {melodyVolume}
+            </Typography>
+            <Slider
+              value={melodyVolume}
+              onChange={handleVolumeChange}
+              min={0}
+              max={100}
+              sx={{ 
+                width: 80,
+                '& .MuiSlider-thumb': {
+                  color: '#2196F3'
+                },
+                '& .MuiSlider-track': {
+                  color: '#2196F3'
+                }
+              }}
+            />
+          </Box>
+        </Grid>
+        
+        <Grid item xs={12} md={2}>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               variant="contained"
@@ -268,6 +350,11 @@ const MelodyGenerator = ({ tempo, currentKey, onMelodyGenerated }) => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6">Generated Melody</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
+              <Chip 
+                label={`Volume: ${melodyVolume}%`} 
+                size="small" 
+                sx={{ bgcolor: '#2196F3', color: 'white' }}
+              />
               <Chip label={`Key: ${currentKey} ${scale}`} />
               <Chip label={`${generatedMelody.notes.length} notes`} />
             </Box>
