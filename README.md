@@ -10,6 +10,11 @@ uvicorn app:app --reload --port 8000
 deactivate
 ```
 
+# Use Python Launcher with version specification
+```
+py -3.11 -m venv venv
+```
+
 # VS Code Setting
 選擇正確的 Python 解釋器：
 ```
