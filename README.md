@@ -12,7 +12,13 @@ deactivate
 
 # Use Python Launcher with version specification
 ```
+cd server
 py -3.11 -m venv venv
+```
+# Activate virtual env
+```
+cd server
+venv\Scripts\activate
 ```
 
 # VS Code Setting
@@ -53,11 +59,7 @@ docker ps -a
 # 查看正在運行的容器
 docker ps
 ```
-# Create virtual environment
-```
-cd server
-python -m venv venv
-```
+
 
 # Frontend Dependencies
 ```
@@ -69,14 +71,10 @@ npm install axios react-query --force
 npm install @mui/material @emotion/react @emotion/styled --force
 npm install react-dropzone react-hot-toast --force
 ```
-# Activate virtual env
-```
-cd server
-venv\Scripts\activate
-```
 
 
-# Use Here-String to create a requirements.txt file
+
+# Use Here-String to create a server/requirements.txt file
 ```
 @"
 fastapi==0.104.1
