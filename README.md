@@ -96,6 +96,10 @@ scikit-learn==1.3.2
 motor==3.3.2
 python-dotenv==1.0.0
 pydub==0.25.1
+pymongo==4.5.0
+moviepy 
+opencv-python 
+matplotlib
 "@ | Out-File -FilePath "requirements.txt" -Encoding utf8 -Force
 
 pip install -r requirements.txt
