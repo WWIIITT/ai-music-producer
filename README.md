@@ -170,7 +170,7 @@ VITE_API_URL=http://localhost:8000
 │   │   │   ├── 📄 HarmonyPanel.jsx
 │   │   │   ├── 📄 MelodyGenerator.jsx
 │   │   │   ├── 📄 MusicUploader.jsx
-│   │   │   ├── 📄 TrackCombiner.jsx
+│   │   │   └── 📄 TrackCombiner.jsx
 │   │   ├── 📁 hooks/                  # Custom React hooks
 │   │   ├── 📁 utils/                  # Utility functions
 │   │   ├── 📄 App.jsx                 # Main App component
