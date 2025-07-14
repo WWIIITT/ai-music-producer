@@ -31,7 +31,8 @@ import {
   Save,
   VolumeUp,
   VolumeDown,
-  VolumeMute
+  VolumeMute,
+  LibraryMusic
 } from '@mui/icons-material';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -41,9 +42,7 @@ import MelodyGenerator from './components/MelodyGenerator';
 import HarmonyPanel from './components/HarmonyPanel';
 import AudioVisualizer from './components/AudioVisualizer';
 import ProjectManager from './components/ProjectManager';
-
-import MusicUploader from './components/MusicUploader';
-import TrackCombiner from './components/TrackCombiner';
+import WholeSongGenerator from './components/WholeSongGenerator';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -57,6 +56,7 @@ function App() {
     beats: [],
     melodies: [],
     harmonies: [],
+    songs: [],
     tempo: 120,
     key: 'C',
     genre: 'hip-hop'
@@ -363,7 +363,7 @@ function App() {
               startIcon={<Download />}
               variant="contained"
               onClick={() => handleExport('wav')}
-              disabled={currentProject.beats.length === 0 && currentProject.melodies.length === 0 && currentProject.harmonies.length === 0}
+              disabled={currentProject.beats.length === 0 && currentProject.melodies.length === 0 && currentProject.harmonies.length === 0 && currentProject.songs.length === 0}
             >
               Export
             </Button>
@@ -380,6 +380,7 @@ function App() {
                 <Tab label="Beat Maker" icon={<GraphicEq />} />
                 <Tab label="Melody Generator" icon={<Piano />} />
                 <Tab label="Harmony" icon={<MusicNote />} />
+                <Tab label="Song Generator" icon={<LibraryMusic />} />
                 <Tab label="Projects" icon={<Save />} />
               </Tabs>
               
@@ -420,6 +421,17 @@ function App() {
                 )}
                 
                 {currentTab === 3 && (
+                  <WholeSongGenerator
+                    tempo={tempo}
+                    masterGain={masterGain}
+                    audioInitialized={audioInitialized}
+                    onSongGenerated={(song) => updateProject({ 
+                      songs: [...(currentProject.songs || []), song] 
+                    })}
+                  />
+                )}
+                
+                {currentTab === 4 && (
                   <ProjectManager
                     currentProject={currentProject}
                     onProjectLoad={setCurrentProject}
@@ -447,6 +459,7 @@ function App() {
                   <MenuItem value="jazz">Jazz</MenuItem>
                   <MenuItem value="electronic">Electronic</MenuItem>
                   <MenuItem value="pop">Pop</MenuItem>
+                  <MenuItem value="classical">Classical</MenuItem>
                 </Select>
               </FormControl>
               
@@ -467,6 +480,7 @@ function App() {
                 <Chip label={`${currentProject.beats.length} Beats`} sx={{ m: 0.5 }} />
                 <Chip label={`${currentProject.melodies.length} Melodies`} sx={{ m: 0.5 }} />
                 <Chip label={`${currentProject.harmonies.length} Harmonies`} sx={{ m: 0.5 }} />
+                <Chip label={`${(currentProject.songs || []).length} Songs`} sx={{ m: 0.5 }} />
               </Box>
               
               {!audioInitialized && (

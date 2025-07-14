@@ -1,6 +1,5 @@
 # server/audio/combiner.py
 import numpy as np
-import librosa
 import soundfile as sf
 from typing import Dict
 import os
@@ -9,135 +8,165 @@ from datetime import datetime
 class AudioCombiner:
     def __init__(self):
         self.sample_rate = 44100
-        
+    
     def combine(self, beat_path: str, melody_path: str, tempo: int = 120,
                 mix_levels: Dict[str, float] = None, output_dir: str = "./temp") -> str:
-        """Combine beat and melody tracks with proper mixing"""
+        """Combine beat and melody tracks"""
         
         if mix_levels is None:
             mix_levels = {"beat": 0.7, "melody": 0.8}
         
         try:
+            print(f"🎛️ Combining tracks: {beat_path} + {melody_path}")
+            
             # Load audio files
-            beat, sr_beat = librosa.load(beat_path, sr=self.sample_rate)
-            melody, sr_melody = librosa.load(melody_path, sr=self.sample_rate)
+            beat_audio, beat_sr = sf.read(beat_path)
+            melody_audio, melody_sr = sf.read(melody_path)
             
-            # Ensure same length (pad or trim)
-            max_length = max(len(beat), len(melody))
+            # Resample if necessary
+            if beat_sr != self.sample_rate:
+                beat_audio = self._resample(beat_audio, beat_sr, self.sample_rate)
+            if melody_sr != self.sample_rate:
+                melody_audio = self._resample(melody_audio, melody_sr, self.sample_rate)
             
-            if len(beat) < max_length:
-                beat = np.pad(beat, (0, max_length - len(beat)), mode='constant')
-            else:
-                beat = beat[:max_length]
-                
-            if len(melody) < max_length:
-                melody = np.pad(melody, (0, max_length - len(melody)), mode='constant')
-            else:
-                melody = melody[:max_length]
+            # Make mono if stereo
+            if beat_audio.ndim > 1:
+                beat_audio = np.mean(beat_audio, axis=1)
+            if melody_audio.ndim > 1:
+                melody_audio = np.mean(melody_audio, axis=1)
+            
+            # Match lengths (pad shorter track or trim longer track)
+            max_length = max(len(beat_audio), len(melody_audio))
+            min_length = min(len(beat_audio), len(melody_audio))
+            
+            # Option 1: Loop shorter track to match longer one
+            if len(beat_audio) < max_length:
+                beat_audio = self._loop_audio(beat_audio, max_length)
+            if len(melody_audio) < max_length:
+                melody_audio = self._loop_audio(melody_audio, max_length)
+            
+            # Option 2: Trim to shorter length (alternative approach)
+            # beat_audio = beat_audio[:min_length]
+            # melody_audio = melody_audio[:min_length]
             
             # Apply mix levels
-            beat = beat * mix_levels.get("beat", 0.7)
-            melody = melody * mix_levels.get("melody", 0.8)
+            beat_mixed = beat_audio * mix_levels.get("beat", 0.7)
+            melody_mixed = melody_audio * mix_levels.get("melody", 0.8)
             
-            # Mix tracks
-            mixed = beat + melody
+            # Combine tracks
+            combined = beat_mixed + melody_mixed
             
-            # Apply compression to prevent clipping
-            mixed = self._apply_compression(mixed)
+            # Normalize to prevent clipping
+            if np.max(np.abs(combined)) > 0:
+                combined = combined / np.max(np.abs(combined)) * 0.9
             
-            # Normalize
-            max_val = np.max(np.abs(mixed))
-            if max_val > 0:
-                mixed = mixed / max_val * 0.9
-            
-            # Apply subtle mastering effects
-            mixed = self._apply_mastering(mixed)
-            
-            # Save combined audio
+            # Save combined track
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"combined_{tempo}bpm_{timestamp}.wav"
+            filename = f"combined_{timestamp}.wav"
             output_path = os.path.join(output_dir, filename)
             
-            sf.write(output_path, mixed, self.sample_rate)
+            sf.write(output_path, combined, self.sample_rate)
+            print(f"✅ Combined track saved: {output_path}")
             
             return output_path
             
         except Exception as e:
-            print(f"Combination error: {str(e)}")
+            print(f"❌ Error combining tracks: {str(e)}")
             raise
     
-    def _apply_compression(self, audio: np.ndarray, threshold: float = 0.7,
-                          ratio: float = 4.0) -> np.ndarray:
-        """Apply dynamic range compression"""
-        # Simple soft-knee compressor
-        compressed = audio.copy()
+    def _resample(self, audio: np.ndarray, original_sr: int, target_sr: int) -> np.ndarray:
+        """Simple resampling (basic implementation)"""
         
-        # Find samples above threshold
-        mask = np.abs(audio) > threshold
+        if original_sr == target_sr:
+            return audio
         
-        # Apply compression
-        compressed[mask] = np.sign(audio[mask]) * (
-            threshold + (np.abs(audio[mask]) - threshold) / ratio
-        )
+        # Calculate resampling ratio
+        ratio = target_sr / original_sr
+        new_length = int(len(audio) * ratio)
         
-        return compressed
+        # Simple linear interpolation resampling
+        old_indices = np.linspace(0, len(audio) - 1, len(audio))
+        new_indices = np.linspace(0, len(audio) - 1, new_length)
+        
+        resampled = np.interp(new_indices, old_indices, audio)
+        
+        return resampled.astype(np.float32)
     
-    def _apply_mastering(self, audio: np.ndarray) -> np.ndarray:
-        """Apply basic mastering effects"""
-        # Add subtle saturation
-        audio = np.tanh(audio * 0.8) / 0.8
+    def _loop_audio(self, audio: np.ndarray, target_length: int) -> np.ndarray:
+        """Loop audio to reach target length"""
         
-        # Apply gentle high-frequency boost (simplified)
-        # In production, use proper EQ
+        if len(audio) >= target_length:
+            return audio[:target_length]
         
-        return audio
+        # Calculate how many full loops we need
+        loops_needed = target_length // len(audio)
+        remainder = target_length % len(audio)
+        
+        # Create looped audio
+        looped = np.tile(audio, loops_needed)
+        
+        # Add partial loop if needed
+        if remainder > 0:
+            looped = np.concatenate([looped, audio[:remainder]])
+        
+        return looped
     
-    def combine_multiple(self, tracks: Dict[str, str], tempo: int = 120,
-                        mix_levels: Dict[str, float] = None,
-                        output_dir: str = "./temp") -> str:
-        """Combine multiple tracks"""
+    def mix_multiple_tracks(self, track_paths: list, mix_levels: list = None, 
+                           output_dir: str = "./temp") -> str:
+        """Mix multiple audio tracks together"""
         
-        if not tracks:
-            raise ValueError("No tracks provided")
+        if mix_levels is None:
+            mix_levels = [1.0 / len(track_paths)] * len(track_paths)
         
-        # Load all tracks
-        loaded_tracks = {}
-        max_length = 0
-        
-        for name, path in tracks.items():
-            audio, sr = librosa.load(path, sr=self.sample_rate)
-            loaded_tracks[name] = audio
-            max_length = max(max_length, len(audio))
-        
-        # Pad all tracks to same length
-        for name in loaded_tracks:
-            if len(loaded_tracks[name]) < max_length:
-                loaded_tracks[name] = np.pad(
-                    loaded_tracks[name],
-                    (0, max_length - len(loaded_tracks[name])),
-                    mode='constant'
-                )
-        
-        # Mix with levels
-        mixed = np.zeros(max_length)
-        
-        for name, audio in loaded_tracks.items():
-            level = mix_levels.get(name, 1.0) if mix_levels else 1.0
-            mixed += audio * level
-        
-        # Apply processing
-        mixed = self._apply_compression(mixed)
-        
-        # Normalize
-        max_val = np.max(np.abs(mixed))
-        if max_val > 0:
-            mixed = mixed / max_val * 0.9
-        
-        # Save
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"combined_multi_{timestamp}.wav"
-        output_path = os.path.join(output_dir, filename)
-        
-        sf.write(output_path, mixed, self.sample_rate)
-        
-        return output_path
+        try:
+            print(f"🎛️ Mixing {len(track_paths)} tracks")
+            
+            # Load all tracks
+            tracks = []
+            max_length = 0
+            
+            for path in track_paths:
+                if os.path.exists(path):
+                    audio, sr = sf.read(path)
+                    
+                    # Resample if necessary
+                    if sr != self.sample_rate:
+                        audio = self._resample(audio, sr, self.sample_rate)
+                    
+                    # Make mono
+                    if audio.ndim > 1:
+                        audio = np.mean(audio, axis=1)
+                    
+                    tracks.append(audio)
+                    max_length = max(max_length, len(audio))
+            
+            if not tracks:
+                raise ValueError("No valid tracks found")
+            
+            # Pad all tracks to same length
+            for i in range(len(tracks)):
+                if len(tracks[i]) < max_length:
+                    tracks[i] = self._loop_audio(tracks[i], max_length)
+            
+            # Mix tracks
+            mixed = np.zeros(max_length)
+            for track, level in zip(tracks, mix_levels):
+                mixed += track * level
+            
+            # Normalize
+            if np.max(np.abs(mixed)) > 0:
+                mixed = mixed / np.max(np.abs(mixed)) * 0.9
+            
+            # Save
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"mixed_{len(tracks)}tracks_{timestamp}.wav"
+            output_path = os.path.join(output_dir, filename)
+            
+            sf.write(output_path, mixed, self.sample_rate)
+            print(f"✅ Mixed track saved: {output_path}")
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"❌ Error mixing tracks: {str(e)}")
+            raise

@@ -18,9 +18,11 @@ import json
 from models.beat_generator import BeatGenerator
 from models.melody_generator import MelodyGenerator
 from models.harmony_suggester import HarmonySuggester
+from models.song_generator import WholeSongGenerator
 from audio.processor import AudioProcessor
 from audio.analyzer import MusicAnalyzer
 from audio.combiner import AudioCombiner
+from audio.mp4_exporter import MP4Exporter
 
 app = FastAPI(title="AI Music Producer API")
 
@@ -39,14 +41,18 @@ os.makedirs("./data", exist_ok=True)
 os.makedirs("./data/uploads", exist_ok=True)
 os.makedirs("./data/analyzed", exist_ok=True)
 os.makedirs("./data/generated", exist_ok=True)
+os.makedirs("./data/songs", exist_ok=True)
+os.makedirs("./data/videos", exist_ok=True)
 
 # Initialize AI models
 beat_gen = BeatGenerator()
 melody_gen = MelodyGenerator()
 harmony_suggest = HarmonySuggester()
+song_gen = WholeSongGenerator()
 audio_proc = AudioProcessor()
 music_analyzer = MusicAnalyzer()
 audio_combiner = AudioCombiner()
+mp4_exporter = MP4Exporter()
 
 # Request/Response Models
 class BeatRequest(BaseModel):
@@ -69,6 +75,20 @@ class HarmonyRequest(BaseModel):
     genre: str = "pop"
     mood: str = "happy"
     bars: int = 4
+
+class SongRequest(BaseModel):
+    style: str = "pop"
+    tempo: int = 120
+    key: str = "C"
+    duration: int = 180
+    variations: int = 1
+    title: Optional[str] = None
+
+class MP4ExportRequest(BaseModel):
+    audio_file: str
+    song_data: Dict
+    visual_style: str = "waveform"
+    title: str = "Generated Song"
 
 class CombineRequest(BaseModel):
     beat_file: str
@@ -269,6 +289,123 @@ async def generate_melody(request: MelodyRequest):
         print(f"Melody generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/generate/whole-song")
+async def generate_whole_song(request: SongRequest):
+    """Generate a complete song with multiple sections"""
+    try:
+        print(f"🎵 Starting whole song generation: {request.style}")
+        
+        # Generate main song
+        song_data = song_gen.generate_whole_song(
+            style=request.style,
+            tempo=request.tempo,
+            key=request.key,
+            total_duration=request.duration
+        )
+        
+        # Generate title if not provided
+        if not request.title:
+            request.title = f"{request.style.title()} Song in {request.key}"
+        
+        song_data["title"] = request.title
+        
+        # Generate variations if requested
+        variations = []
+        if request.variations > 1:
+            variations = song_gen.generate_arrangement_variations(
+                song_data, 
+                num_variations=request.variations - 1
+            )
+        
+        # Convert song sections to audio
+        audio_path = audio_proc.song_to_audio(
+            song_data,
+            output_dir="./temp"
+        )
+        
+        # Process variations
+        variation_data = []
+        for i, variation in enumerate(variations):
+            var_audio_path = audio_proc.song_to_audio(
+                variation,
+                output_dir="./temp",
+                suffix=f"_var{i+1}"
+            )
+            variation_data.append({
+                "variation_id": variation["variation_id"],
+                "style": variation["style"],
+                "audio_url": f"/api/audio/{os.path.basename(var_audio_path)}"
+            })
+        
+        # Save song data
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        song_id = f"song_{timestamp}"
+        
+        song_info = {
+            "song_id": song_id,
+            "title": request.title,
+            "song_data": song_data,
+            "variations": variation_data,
+            "timestamp": timestamp
+        }
+        
+        song_path = os.path.join("./data/songs", f"{song_id}.json")
+        with open(song_path, "w") as f:
+            json.dump(song_info, f, indent=2)
+        
+        return {
+            "title": request.title,
+            "style": request.style,
+            "tempo": request.tempo,
+            "key": request.key,
+            "duration": song_data["total_duration"],
+            "sections": len(song_data["sections"]),
+            "structure": song_data["structure"],
+            "audio_url": f"/api/audio/{os.path.basename(audio_path)}",
+            "variations": variation_data,
+            "song_data": song_data,
+            "song_id": song_id
+        }
+        
+    except Exception as e:
+        print(f"Song generation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/export/mp4")
+async def export_mp4(request: MP4ExportRequest):
+    """Export song as MP4 video with visualization"""
+    try:
+        print(f"🎬 Starting MP4 export: {request.visual_style}")
+        
+        # Find audio file
+        audio_path = os.path.join("./temp", request.audio_file)
+        if not os.path.exists(audio_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        # Generate MP4
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        mp4_filename = f"{request.title.replace(' ', '_')}_{request.visual_style}_{timestamp}.mp4"
+        mp4_path = os.path.join("./data/videos", mp4_filename)
+        
+        # Create music video
+        final_mp4_path = mp4_exporter.create_music_video(
+            audio_path=audio_path,
+            song_data=request.song_data,
+            output_path=mp4_path,
+            style=request.visual_style
+        )
+        
+        return {
+            "mp4_url": f"/api/video/{os.path.basename(final_mp4_path)}",
+            "filename": os.path.basename(final_mp4_path),
+            "visual_style": request.visual_style,
+            "title": request.title
+        }
+        
+    except Exception as e:
+        print(f"MP4 export error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/combine/tracks")
 async def combine_tracks(request: CombineRequest):
     """Combine beat and melody tracks"""
@@ -377,6 +514,18 @@ async def export_project(request: ExportRequest):
                             os.rename(audio_path, melody_audio_path)
                             export_files.append(melody_audio_path)
             
+            # Export songs
+            if project.get("songs"):
+                for i, song in enumerate(project["songs"]):
+                    if "audio_url" in song:
+                        src_filename = song["audio_url"].split("/")[-1]
+                        src_path = os.path.join("./temp", src_filename)
+                        if os.path.exists(src_path):
+                            dst_name = f"song_{i+1}_{song.get('title', 'untitled')}.wav"
+                            dst_path = os.path.join(temp_dir, dst_name)
+                            shutil.copy(src_path, dst_path)
+                            export_files.append(dst_path)
+            
             # Export combined tracks if available
             if project.get("combined_tracks"):
                 for i, track in enumerate(project["combined_tracks"]):
@@ -437,6 +586,14 @@ async def get_midi(filename: str):
     if os.path.exists(file_path):
         return FileResponse(file_path, media_type="audio/midi")
     raise HTTPException(status_code=404, detail="MIDI file not found")
+
+@app.get("/api/video/{filename}")
+async def get_video(filename: str):
+    """Serve MP4 video files"""
+    file_path = f"./data/videos/{filename}"
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="video/mp4")
+    raise HTTPException(status_code=404, detail="Video file not found")
 
 if __name__ == "__main__":
     import uvicorn

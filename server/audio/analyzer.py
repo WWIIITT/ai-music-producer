@@ -1,226 +1,193 @@
 # server/audio/analyzer.py
 import librosa
 import numpy as np
-from typing import Dict, List, Optional
-import pretty_midi
+from typing import Dict, List
+import soundfile as sf
 
 class MusicAnalyzer:
     def __init__(self):
-        self.keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-        self.modes = ['major', 'minor']
+        self.sample_rate = 22050
         
-    def analyze_deep(self, audio_path: str) -> Dict:
-        """Perform deep analysis of audio file"""
+    def analyze_deep(self, file_path: str) -> Dict:
+        """Perform deep analysis of uploaded music file"""
+        
         try:
-            # Load audio
-            y, sr = librosa.load(audio_path, sr=None)
+            print(f"🔍 Analyzing music file: {file_path}")
             
-            # Basic features
+            # Load audio
+            y, sr = librosa.load(file_path, sr=self.sample_rate)
+            duration = len(y) / sr
+            
+            # Extract features
             tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
             
-            # Key detection
+            # Key detection (simplified)
             chroma = librosa.feature.chroma_stft(y=y, sr=sr)
-            key, mode = self._detect_key(chroma)
+            key = self._detect_key(chroma)
             
-            # Time signature
-            time_signature = self._detect_time_signature(y, sr, beats)
+            # Genre classification (simplified)
+            genre = self._classify_genre(y, sr)
             
-            # Energy and dynamics
-            rms = librosa.feature.rms(y=y)[0]
-            energy = float(np.mean(rms))
-            energy_variance = float(np.std(rms))
+            # Time signature detection
+            time_signature = self._detect_time_signature(beats, tempo)
             
-            # Spectral features for genre/mood
-            spectral_centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
-            spectral_rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr))
-            zero_crossing_rate = np.mean(librosa.feature.zero_crossing_rate(y))
-            
-            # Genre classification
-            genre = self._classify_genre(tempo, spectral_centroid, energy)
+            # Energy analysis
+            energy = self._calculate_energy(y)
             
             # Mood detection
-            mood = self._detect_mood(mode, energy, tempo)
+            mood = self._detect_mood(y, sr, energy)
             
-            # Chord progression detection
-            chord_progression = self._detect_chords(y, sr, key)
+            # Chord progression (simplified)
+            chord_progression = self._extract_chord_progression(chroma, key)
             
-            # Structure analysis
-            structure = self._analyze_structure(y, sr)
-            
-            return {
+            analysis = {
                 "tempo": float(tempo),
                 "key": key,
-                "mode": mode,
-                "time_signature": time_signature,
-                "energy": energy,
-                "energy_variance": energy_variance,
+                "mode": "major",  # Simplified
                 "genre": genre,
+                "time_signature": time_signature,
+                "duration": duration,
+                "energy": energy,
                 "mood": mood,
-                "chord_progression": chord_progression,
-                "spectral_centroid": float(spectral_centroid),
-                "spectral_rolloff": float(spectral_rolloff),
-                "zero_crossing_rate": float(zero_crossing_rate),
-                "structure": structure,
-                "duration": float(len(y) / sr)
+                "chord_progression": chord_progression
             }
             
+            print(f"✅ Analysis complete: {analysis}")
+            return analysis
+            
         except Exception as e:
-            print(f"Analysis error: {str(e)}")
-            # Return default values on error
+            print(f"❌ Analysis error: {str(e)}")
+            # Return default analysis
             return {
                 "tempo": 120.0,
                 "key": "C",
                 "mode": "major",
-                "time_signature": "4/4",
-                "energy": 0.5,
-                "energy_variance": 0.1,
                 "genre": "pop",
+                "time_signature": "4/4",
+                "duration": 180.0,
+                "energy": 0.7,
                 "mood": "neutral",
-                "chord_progression": ["I", "V", "vi", "IV"],
-                "spectral_centroid": 2000.0,
-                "spectral_rolloff": 4000.0,
-                "zero_crossing_rate": 0.1,
-                "structure": {"sections": ["intro", "verse", "chorus", "outro"]},
-                "duration": 0.0
+                "chord_progression": ["I", "V", "vi", "IV"]
             }
     
-    def _detect_key(self, chroma: np.ndarray) -> tuple:
+    def _detect_key(self, chroma: np.ndarray) -> str:
         """Detect musical key from chroma features"""
-        # Krumhansl-Schmuckler key-finding algorithm (simplified)
-        chroma_avg = np.mean(chroma, axis=1)
         
-        # Major and minor key profiles
-        major_profile = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
-        minor_profile = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
+        # Average chroma across time
+        chroma_mean = np.mean(chroma, axis=1)
         
-        # Correlation with each key
-        max_corr = -1
-        best_key = "C"
-        best_mode = "major"
+        # Find dominant note
+        dominant_note_idx = np.argmax(chroma_mean)
         
-        for i in range(12):
-            # Rotate profiles
-            major_rot = np.roll(major_profile, i)
-            minor_rot = np.roll(minor_profile, i)
-            
-            # Calculate correlation
-            major_corr = np.corrcoef(chroma_avg, major_rot)[0, 1]
-            minor_corr = np.corrcoef(chroma_avg, minor_rot)[0, 1]
-            
-            if major_corr > max_corr:
-                max_corr = major_corr
-                best_key = self.keys[i]
-                best_mode = "major"
-                
-            if minor_corr > max_corr:
-                max_corr = minor_corr
-                best_key = self.keys[i]
-                best_mode = "minor"
+        # Map to note names
+        note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         
-        return best_key, best_mode
+        return note_names[dominant_note_idx]
     
-    def _detect_time_signature(self, y: np.ndarray, sr: int, beats: np.ndarray) -> str:
+    def _classify_genre(self, y: np.ndarray, sr: int) -> str:
+        """Classify genre (simplified heuristic-based)"""
+        
+        # Extract features
+        spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+        spectral_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+        zero_crossing_rate = librosa.feature.zero_crossing_rate(y)
+        
+        # Calculate means
+        centroid_mean = np.mean(spectral_centroid)
+        rolloff_mean = np.mean(spectral_rolloff)
+        zcr_mean = np.mean(zero_crossing_rate)
+        
+        # Simple classification rules
+        if centroid_mean > 3000 and zcr_mean > 0.1:
+            return "electronic"
+        elif centroid_mean > 2000 and rolloff_mean > 4000:
+            return "rock"
+        elif centroid_mean < 1500:
+            return "jazz"
+        elif zcr_mean < 0.05:
+            return "classical"
+        else:
+            return "pop"
+    
+    def _detect_time_signature(self, beats: np.ndarray, tempo: float) -> str:
         """Detect time signature"""
+        
+        # Simplified: analyze beat intervals
         if len(beats) < 8:
             return "4/4"
         
         # Calculate beat intervals
-        beat_times = librosa.frames_to_time(beats, sr=sr)
-        intervals = np.diff(beat_times)
+        beat_intervals = np.diff(beats)
         
         # Look for patterns
-        avg_interval = np.mean(intervals)
-        
-        # Simple heuristic
-        if avg_interval < 0.4:  # Fast beats
+        if len(beat_intervals) > 0:
+            # Most music is 4/4
             return "4/4"
-        elif avg_interval > 0.7:  # Slow beats
-            return "3/4"
+        
+        return "4/4"
+    
+    def _calculate_energy(self, y: np.ndarray) -> float:
+        """Calculate overall energy level"""
+        
+        # RMS energy
+        rms_energy = librosa.feature.rms(y=y)
+        energy_mean = np.mean(rms_energy)
+        
+        # Normalize to 0-1 range
+        energy_normalized = min(energy_mean * 10, 1.0)
+        
+        return float(energy_normalized)
+    
+    def _detect_mood(self, y: np.ndarray, sr: int, energy: float) -> str:
+        """Detect mood from audio features"""
+        
+        # Extract spectral features
+        spectral_centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
+        chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+        
+        # Major/minor detection (simplified)
+        chroma_mean = np.mean(chroma, axis=1)
+        major_profile = np.array([1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])
+        minor_profile = np.array([1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0])
+        
+        major_correlation = np.corrcoef(chroma_mean, major_profile)[0, 1]
+        minor_correlation = np.corrcoef(chroma_mean, minor_profile)[0, 1]
+        
+        # Determine mood
+        if energy > 0.7 and major_correlation > minor_correlation:
+            return "happy"
+        elif energy > 0.8:
+            return "energetic"
+        elif energy < 0.3:
+            return "calm"
+        elif minor_correlation > major_correlation:
+            return "sad"
+        elif spectral_centroid < 1000:
+            return "mysterious"
         else:
-            # Check for regularity
-            std_interval = np.std(intervals)
-            if std_interval < 0.1:
-                return "4/4"
-            else:
-                return "3/4"
+            return "neutral"
     
-    def _classify_genre(self, tempo: float, spectral_centroid: float, energy: float) -> str:
-        """Simple genre classification based on features"""
-        # This is a simplified heuristic - in production use ML model
+    def _extract_chord_progression(self, chroma: np.ndarray, key: str) -> List[str]:
+        """Extract simplified chord progression"""
         
-        if tempo > 140 and spectral_centroid > 3000:
-            return "electronic"
-        elif tempo > 120 and energy > 0.7:
-            return "rock"
-        elif tempo < 100 and spectral_centroid < 2000:
-            return "jazz"
-        elif tempo > 85 and tempo < 115:
-            return "hip-hop"
-        else:
-            return "pop"
-    
-    def _detect_mood(self, mode: str, energy: float, tempo: float) -> str:
-        """Detect mood based on musical features"""
-        if mode == "minor":
-            if energy < 0.4:
-                return "sad"
-            elif tempo > 120:
-                return "angry"
-            else:
-                return "mysterious"
-        else:  # major
-            if energy > 0.6 and tempo > 120:
-                return "energetic"
-            elif energy < 0.4:
-                return "calm"
-            elif tempo > 100:
-                return "happy"
-            else:
-                return "uplifting"
-    
-    def _detect_chords(self, y: np.ndarray, sr: int, key: str) -> List[str]:
-        """Detect chord progression (simplified)"""
-        # This is a very simplified version
-        # In production, use a proper chord recognition model
+        # Simplified chord progression extraction
+        # This is a very basic implementation
         
-        # Common progressions by genre/mood
-        common_progressions = [
-            ["I", "V", "vi", "IV"],      # Pop progression
-            ["I", "IV", "V", "I"],        # Classic
-            ["i", "iv", "VII", "III"],    # Minor progression
-            ["I", "vi", "IV", "V"],       # 50s progression
-            ["ii", "V", "I", "I"],        # Jazz
-        ]
+        # Common progressions by key
+        progressions = {
+            "C": ["I", "V", "vi", "IV"],
+            "G": ["I", "V", "vi", "IV"], 
+            "D": ["I", "V", "vi", "IV"],
+            "A": ["I", "V", "vi", "IV"],
+            "E": ["I", "V", "vi", "IV"],
+            "B": ["I", "V", "vi", "IV"],
+            "F#": ["I", "V", "vi", "IV"],
+            "F": ["I", "V", "vi", "IV"],
+            "Bb": ["I", "V", "vi", "IV"],
+            "Eb": ["I", "V", "vi", "IV"],
+            "Ab": ["I", "V", "vi", "IV"],
+            "Db": ["I", "V", "vi", "IV"]
+        }
         
-        # For now, return a random common progression
-        # In reality, this would analyze harmonic content
-        return common_progressions[0]
-    
-    def _analyze_structure(self, y: np.ndarray, sr: int) -> Dict:
-        """Analyze song structure"""
-        # Segment the audio
-        try:
-            # Use spectral features to detect sections
-            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-            
-            # Simple segmentation based on self-similarity
-            sections = ["intro", "verse", "chorus", "verse", "chorus", "bridge", "chorus", "outro"]
-            
-            # Calculate approximate timestamps
-            duration = len(y) / sr
-            section_duration = duration / len(sections)
-            
-            structure = {
-                "sections": sections,
-                "timestamps": [i * section_duration for i in range(len(sections))],
-                "total_sections": len(sections)
-            }
-            
-            return structure
-            
-        except:
-            return {
-                "sections": ["intro", "main", "outro"],
-                "timestamps": [0.0],
-                "total_sections": 3
-            }
+        # Return progression for key, or default
+        return progressions.get(key, ["I", "V", "vi", "IV"])
