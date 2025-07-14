@@ -29,7 +29,7 @@ import * as Tone from 'tone';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const MelodyGenerator = ({ tempo, currentKey, masterGain, onMelodyGenerated }) => {
+const MelodyGenerator = ({  tempo, currentKey, masterGain, onMelodyGenerated, referenceFile }) => {
   const [scale, setScale] = useState('major');
   const [melodyBars, setMelodyBars] = useState(4);
   const [chordProgression, setChordProgression] = useState('');

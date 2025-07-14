@@ -42,6 +42,9 @@ import HarmonyPanel from './components/HarmonyPanel';
 import AudioVisualizer from './components/AudioVisualizer';
 import ProjectManager from './components/ProjectManager';
 
+import MusicUploader from './components/MusicUploader';
+import TrackCombiner from './components/TrackCombiner';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 function App() {
