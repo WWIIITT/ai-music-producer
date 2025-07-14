@@ -169,12 +169,13 @@ VITE_API_URL=http://localhost:8000
 │   ├── 📁 src/                        # Source code
 │   │   ├── 📁 components/             # React components
 │   │   │   ├── 📄 ProjectManager.jsx  
-│   │   │   ├── 📄 AudioVisualizer.jsx
-│   │   │   ├── 📄 BeatGenerator.jsx
-│   │   │   ├── 📄 HarmonyPanel.jsx
-│   │   │   ├── 📄 MelodyGenerator.jsx
-│   │   │   ├── 📄 MusicUploader.jsx
+│   │   │   ├── 📄 AudioVisualizer.jsx 
+│   │   │   ├── 📄 BeatGenerator.jsx   
+│   │   │   ├── 📄 HarmonyPanel.jsx    
+│   │   │   ├── 📄 MelodyGenerator.jsx 
+│   │   │   ├── 📄 MusicUploader.jsx   
 │   │   │   └── 📄 TrackCombiner.jsx
+│   │   │   └── 📄 WholeSongGenerator.jsx
 │   │   ├── 📁 hooks/                  # Custom React hooks
 │   │   ├── 📁 utils/                  # Utility functions
 │   │   ├── 📄 App.jsx                 # Main App component
@@ -191,18 +192,22 @@ VITE_API_URL=http://localhost:8000
     │   ├── 📁 __pycache__/            # Python cache
     │   ├── 📄 .gitignore              # API git ignore
     │   └── 📄 database.py             # Database operations
+
     ├── 📁 audio/                      # Audio processing
     │   ├── 📁 __pycache__/            # Python cache
     │   ├── 📄 .gitignore              # Audio git ignore
     │   ├── 📄 analyzer.py             # Analyze song structure
     │   ├── 📄 combiner.py             # Combine audio tracks
     │   └── 📄 processor.py            # Audio processing logic
+    │   └── 📄 mp4_exporter.py
+
     ├── 📁 models/                     # AI Models
     │   ├── 📁 __pycache__/            # Python cache
     │   ├── 📄 .gitignore              # Models git ignore
     │   ├── 📄 beat_generator.py       # Beat generation AI model
     │   ├── 📄 harmony_suggester.py    # Harmony suggestion AI model
     │   └── 📄 melody_generator.py     # Melody generation AI model
+    │   └── 📄 song_generator.py
     ├── 📁 temp/                       # Temporary files
     ├── 📁 venv/                       # Python virtual environment
     ├── 📄 .env                        # Backend environment variables
