@@ -164,6 +164,13 @@ VITE_API_URL=http://localhost:8000
 │   ├── 📁 public/                     # Static assets
 │   ├── 📁 src/                        # Source code
 │   │   ├── 📁 components/             # React components
+│   │   │   ├── 📄 ProjectManager.jsx  
+│   │   │   ├── 📄 AudioVisualizer.jsx
+│   │   │   ├── 📄 BeatGenerator.jsx
+│   │   │   ├── 📄 HarmonyPanel.jsx
+│   │   │   ├── 📄 MelodyGenerator.jsx
+│   │   │   ├── 📄 MusicUploader.jsx
+│   │   │   ├── 📄 TrackCombiner.jsx
 │   │   ├── 📁 hooks/                  # Custom React hooks
 │   │   ├── 📁 utils/                  # Utility functions
 │   │   ├── 📄 App.jsx                 # Main App component
@@ -183,6 +190,8 @@ VITE_API_URL=http://localhost:8000
     ├── 📁 audio/                      # Audio processing
     │   ├── 📁 __pycache__/            # Python cache
     │   ├── 📄 .gitignore              # Audio git ignore
+    │   ├── 📄 analyzer.py             # Analyze song structure
+    │   ├── 📄 combiner.py             # Combine audio tracks
     │   └── 📄 processor.py            # Audio processing logic
     ├── 📁 models/                     # AI Models
     │   ├── 📁 __pycache__/            # Python cache
